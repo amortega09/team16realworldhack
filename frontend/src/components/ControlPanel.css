@@ -1,0 +1,110 @@
+.control-panel { display: flex; flex-direction: column; gap: 0; }
+
+.cp-section { padding: 4px 0 12px; }
+
+.cp-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.cp-empty { color: var(--text-dim); font-size: 0.78rem; }
+
+.cp-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0 16px;
+}
+
+.cp-zone { margin-bottom: 10px; }
+.cp-zone-name {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+.cp-override-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border);
+}
+.cp-override-row:last-child { border-bottom: none; }
+.cp-metric { color: var(--text); font-weight: 500; }
+.cp-delta {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.cp-delta.pos { color: var(--red); }
+.cp-delta.neg { color: var(--green); }
+
+/* Toggle */
+.cp-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+.cp-toggle input { display: none; }
+
+.cp-track {
+  width: 36px;
+  height: 20px;
+  background: var(--border-hi);
+  border-radius: 10px;
+  position: relative;
+  transition: background 0.2s;
+  flex-shrink: 0;
+  border: 1px solid var(--border-hi);
+}
+.cp-toggle input:checked ~ .cp-track { background: var(--amber); border-color: var(--amber); }
+
+.cp-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  transition: left 0.2s;
+  box-shadow: 0 1px 3px #0006;
+}
+.cp-toggle input:checked ~ .cp-track .cp-thumb { left: 18px; }
+
+.cp-toggle-label { font-size: 0.8rem; color: var(--text); font-weight: 500; }
+.cp-warning {
+  font-size: 0.74rem;
+  color: var(--amber);
+  margin-top: 8px;
+  line-height: 1.4;
+}
+
+/* Emergency stop */
+.cp-emergency {
+  width: 100%;
+  padding: 10px;
+  background: var(--red-dim);
+  border: 1px solid #f0375a44;
+  border-radius: 6px;
+  color: var(--red);
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+.cp-emergency:hover { background: #f0375a28; border-color: #f0375a66; }
+.cp-emergency:active { transform: scale(0.98); }

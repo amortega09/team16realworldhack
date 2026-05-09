@@ -1,0 +1,7 @@
+name,display_name,hierarchy_type,parent,geometry_id,portfolio_name,id,parent_id,longitude,latitude,portfolio_id
+ethylene-plant-alpha,Ethylene Plant Alpha,plant,ethylene-plant-alpha,9101,ChemCorp,9201,9200,,,9000
+r101,Reactor R-101,zone,ethylene-plant-alpha,9102,ChemCorp,9202,9200,,,9000
+r102,Reactor R-102,zone,ethylene-plant-alpha,9103,ChemCorp,9203,9200,,,9000
+hx01,Heat Exchanger HX-01,zone,ethylene-plant-alpha,9104,ChemCorp,9204,9200,,,9000
+dist-c01,Distillation Column C-01,zone,ethylene-plant-alpha,9105,ChemCorp,9205,9200,,,9000
+util,Utility Zone,zone,ethylene-plant-alpha,9106,ChemCorp,9206,9200,,,9000
