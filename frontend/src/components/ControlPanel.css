@@ -123,6 +123,10 @@
   margin-top: 10px;
 }
 
+.cp-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .cp-input,
 .cp-textarea {
   width: 100%;
@@ -153,6 +157,64 @@
   line-height: 1.5;
 }
 
+.cp-status {
+  margin-top: 10px;
+  font-size: 0.8rem;
+  color: var(--blue);
+  font-weight: 600;
+}
+
+.cp-record {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(47, 111, 143, 0.2);
+  background: rgba(47, 111, 143, 0.09);
+  color: var(--blue);
+  border-radius: 14px;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.cp-record:hover {
+  background: rgba(47, 111, 143, 0.14);
+  border-color: rgba(47, 111, 143, 0.28);
+}
+
+.cp-record:active {
+  transform: scale(0.98);
+}
+
+.cp-record.is-recording {
+  background: rgba(181, 59, 53, 0.1);
+  border-color: rgba(181, 59, 53, 0.28);
+  color: var(--red);
+}
+
+.cp-mic-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.cp-mic-icon.is-recording {
+  animation: cp-pulse 1.2s ease infinite;
+}
+
+.cp-transcript {
+  margin-top: 10px;
+}
+
+@keyframes cp-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.75; }
+}
+
 .cp-action {
   width: 100%;
   margin-top: 12px;
@@ -178,6 +240,40 @@
   transform: scale(0.98);
 }
 
+.cp-action-secondary {
+  background: rgba(24, 122, 82, 0.08);
+  border-color: rgba(24, 122, 82, 0.2);
+  color: var(--green);
+}
+
+.cp-action-secondary:hover {
+  background: rgba(24, 122, 82, 0.14);
+  border-color: rgba(24, 122, 82, 0.28);
+}
+
+.cp-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cp-chip {
+  border: 1px solid rgba(200, 183, 157, 0.9);
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.cp-chip:hover {
+  background: rgba(47, 111, 143, 0.08);
+  border-color: rgba(47, 111, 143, 0.2);
+}
+
 /* Emergency stop */
 .cp-emergency {
   width: 100%;
@@ -199,6 +295,10 @@
 
 @media (max-width: 720px) {
   .cp-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cp-grid-3 {
     grid-template-columns: 1fr;
   }
 }

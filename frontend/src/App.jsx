@@ -60,7 +60,7 @@ function Header({ data, connected, post }) {
 }
 
 export default function App() {
-  const { data, connected, post } = usePlantData()
+  const { data, connected, post, postForm } = usePlantData()
 
   return (
     <div className="app">
@@ -83,6 +83,7 @@ export default function App() {
             voiceSettings={data?.voice_settings}
             optimizationSettings={data?.optimization_settings}
             post={post}
+            postForm={postForm}
           />
         </aside>
       </main>

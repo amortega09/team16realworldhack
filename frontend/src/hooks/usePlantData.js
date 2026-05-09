@@ -7,26 +7,37 @@ export function usePlantData() {
   const [connected, setConnected] = useState(false)
   const ws = useRef(null)
 
-  const connect = useCallback(() => {
-    if (ws.current?.readyState === WebSocket.OPEN) return
+  useEffect(() => {
+    let reconnectTimer = null
+    let cancelled = false
 
-    ws.current = new WebSocket(WS_URL)
+    const connect = () => {
+      if (cancelled || ws.current?.readyState === WebSocket.OPEN) return
 
-    ws.current.onopen  = () => setConnected(true)
-    ws.current.onclose = () => {
-      setConnected(false)
-      setTimeout(connect, 2000)   // reconnect after 2s
+      ws.current = new WebSocket(WS_URL)
+
+      ws.current.onopen = () => setConnected(true)
+      ws.current.onclose = () => {
+        setConnected(false)
+        if (!cancelled) reconnectTimer = setTimeout(connect, 2000)
+      }
+      ws.current.onerror = () => ws.current?.close()
+      ws.current.onmessage = (e) => {
+        try {
+          setData(JSON.parse(e.data))
+        } catch (error) {
+          console.error('Failed to parse websocket message', error)
+        }
+      }
     }
-    ws.current.onerror = () => ws.current?.close()
-    ws.current.onmessage = (e) => {
-      try { setData(JSON.parse(e.data)) } catch {}
+
+    connect()
+    return () => {
+      cancelled = true
+      if (reconnectTimer) clearTimeout(reconnectTimer)
+      ws.current?.close()
     }
   }, [])
-
-  useEffect(() => {
-    connect()
-    return () => ws.current?.close()
-  }, [connect])
 
   const post = useCallback(async (path, body = {}) => {
     await fetch(path, {
@@ -36,5 +47,19 @@ export function usePlantData() {
     })
   }, [])
 
-  return { data, connected, post }
+  const postForm = useCallback(async (path, formData) => {
+    const response = await fetch(path, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const message = await response.text()
+      throw new Error(message || 'Request failed')
+    }
+
+    return response.json()
+  }, [])
+
+  return { data, connected, post, postForm }
 }

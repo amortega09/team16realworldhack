@@ -2,6 +2,7 @@ from plant.simulator import PlantSimulator
 from plant.cost_model import compute_cost_per_hour
 from agents.agent_monitor import MonitorAgent
 from agents.agent_control import ControlAgent
+from agents.agent_read import ReadAgent
 from agents.agent_voice import VoiceAgent
 from agents.agent_supervisor import SupervisorAgent
 
@@ -11,6 +12,7 @@ class Pipeline:
         self.simulator  = PlantSimulator()
         self.monitor    = MonitorAgent()
         self.control    = ControlAgent(self.simulator)
+        self.reader     = ReadAgent()
         self.voice      = VoiceAgent()
         self.supervisor = SupervisorAgent(self.simulator, self.control, self.voice)
         self.decisions  = []

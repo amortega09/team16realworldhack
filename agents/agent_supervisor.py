@@ -2,20 +2,22 @@ import os
 import json
 from openai import OpenAI
 from plant.cost_model import compute_cost_per_hour, project_cost_after_action
-from config.plant_config import ZONES, SENSOR_UNITS
+from plant.objective_model import compute_objective_metrics, project_objectives_after_action
+from config.plant_config import SENSOR_NORMAL_RANGES, SENSOR_UNITS
 
 MODEL = "gpt-5.5"
 
 SYSTEM_PROMPT = """You are ChemBrain, the autonomous operations supervisor for an industrial chemical plant.
 
-Your job is to monitor sensor alerts and take the lowest-cost safe corrective action.
+Your job is to monitor sensor alerts and take the safest corrective action while balancing the live optimisation goals provided below.
 
 Rules you must never break:
 1. Safety is absolute. Never propose an action that would push a sensor outside its hard limits.
 2. If the Control Agent rejects your action, re-reason with the stated constraint and try again with a smaller delta.
-3. Always prefer the action that resolves the alert at lowest energy cost.
-4. After deciding on an action, call dispatch_voice with a clear operator briefing — spoken in plain English, as if calling a human operator on the phone. Include: what the problem is, how serious it is, what you are doing about it, and the estimated cost impact.
-5. Always call log_decision last to record your reasoning.
+3. Respect the current optimisation weights and target conditions when selecting between safe actions.
+4. Use get_action_projection to compare candidate actions against the active objective set when tradeoffs are meaningful.
+5. After deciding on an action, call dispatch_voice with a clear operator briefing in plain English. The backend may mute audible playback, but you should still generate the operator briefing text.
+6. Always call log_decision last to record your reasoning.
 
 Available control actions:
 - adjust_heater_power: change heater output (delta in % of rated, negative = reduce)
@@ -23,7 +25,7 @@ Available control actions:
 - adjust_vent_valve: change vent opening (delta in % open, positive = open more)
 - adjust_temperature_setpoint: shift reactor temperature target (delta in °C)
 
-The voice message will be spoken aloud to the plant operator immediately. Make it sound like a professional automated call, not a system log."""
+Make tradeoffs deliberately. If weights emphasize safety or stability, prefer more conservative actions. If they emphasize cost or throughput, improve those outcomes without violating safety."""
 
 TOOLS = [
     {
@@ -37,8 +39,8 @@ TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "get_cost_projection",
-            "description": "Get the current operating cost and projected cost after a proposed action.",
+            "name": "get_action_projection",
+            "description": "Get current and projected operating metrics after a proposed action, including cost and optimization objectives.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -118,13 +120,14 @@ class SupervisorAgent:
         self._control = control_agent
         self._voice   = voice_agent
         self._client  = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self._optimization_settings = self._build_default_optimization_settings()
 
     def handle(self, alerts: list[dict], state: dict) -> dict | None:
         if not alerts:
             return None
 
         messages = [
-            {"role": "system",  "content": SYSTEM_PROMPT},
+            {"role": "system",  "content": self._build_system_prompt()},
             {"role": "user",    "content": self._format_alerts(alerts, state)},
         ]
 
@@ -182,15 +185,25 @@ class SupervisorAgent:
                 for zone, data in state.items()
             }
 
-        elif name == "get_cost_projection":
-            current_cost   = compute_cost_per_hour(state)
+        elif name == "get_action_projection":
+            current_cost = compute_cost_per_hour(state)
+            current_objectives = compute_objective_metrics(state)
             projected_cost = project_cost_after_action(
                 state, inputs["zone"], inputs["action"], inputs["delta"]
             )
+            projected_objectives = project_objectives_after_action(
+                state,
+                inputs["zone"],
+                inputs["action"],
+                inputs["delta"],
+                previous_state=state,
+            )
             return {
-                "current_cost_gbp_per_hr":   current_cost,
+                "current_cost_gbp_per_hr": current_cost,
                 "projected_cost_gbp_per_hr": projected_cost,
-                "saving_gbp_per_hr":         round(current_cost - projected_cost, 2),
+                "saving_gbp_per_hr": round(current_cost - projected_cost, 2),
+                "current_objectives": current_objectives,
+                "projected_objectives": projected_objectives,
             }
 
         elif name == "dispatch_control":
@@ -208,8 +221,7 @@ class SupervisorAgent:
 
         elif name == "dispatch_voice":
             decision["voice_message"] = inputs["message"]
-            self._voice.speak(inputs["message"])
-            return {"status": "speaking"}
+            return self._voice.speak(inputs["message"])
 
         elif name == "log_decision":
             decision["reasoning"]    = inputs.get("reasoning", decision["reasoning"])
@@ -218,6 +230,98 @@ class SupervisorAgent:
             return {"status": "logged"}
 
         return {"error": f"Unknown tool: {name}"}
+
+    def update_optimization_settings(self, updates: dict | None) -> dict:
+        if not updates:
+            return self.get_optimization_settings()
+
+        weights = updates.get("weights")
+        if isinstance(weights, dict):
+            for key, raw_value in weights.items():
+                if not isinstance(key, str):
+                    continue
+                normalized_key = self._normalize_metric_key(key)
+                if not normalized_key:
+                    continue
+                try:
+                    value = float(raw_value)
+                except (TypeError, ValueError):
+                    continue
+                self._optimization_settings["weights"][normalized_key] = max(0.0, min(10.0, value))
+
+        objectives = updates.get("objectives")
+        if isinstance(objectives, dict):
+            for key, raw_description in objectives.items():
+                if not isinstance(key, str):
+                    continue
+                normalized_key = self._normalize_metric_key(key)
+                if not normalized_key:
+                    continue
+                if isinstance(raw_description, str):
+                    description = raw_description.strip()
+                    if description:
+                        self._optimization_settings["objectives"][normalized_key] = description
+                self._optimization_settings["weights"].setdefault(normalized_key, 5.0)
+
+        targets = updates.get("targets")
+        if isinstance(targets, dict):
+            for sensor, current in self._optimization_settings["targets"].items():
+                if sensor in targets:
+                    raw = targets[sensor]
+                    if raw in ("", None):
+                        self._optimization_settings["targets"][sensor] = None
+                        continue
+                    try:
+                        self._optimization_settings["targets"][sensor] = round(float(raw), 3)
+                    except (TypeError, ValueError):
+                        self._optimization_settings["targets"][sensor] = current
+
+        summary = updates.get("summary")
+        if isinstance(summary, str):
+            self._optimization_settings["summary"] = summary.strip() or self._optimization_settings["summary"]
+
+        return self.get_optimization_settings()
+
+    def get_optimization_settings(self) -> dict:
+        return {
+            "summary": self._optimization_settings["summary"],
+            "weights": dict(self._optimization_settings["weights"]),
+            "objectives": dict(self._optimization_settings["objectives"]),
+            "targets": dict(self._optimization_settings["targets"]),
+        }
+
+    def _build_system_prompt(self) -> str:
+        settings = self.get_optimization_settings()
+        weights = settings["weights"]
+        targets = settings["targets"]
+        lines = [
+            SYSTEM_PROMPT,
+            "",
+            "Current optimisation summary:",
+            settings["summary"],
+            "",
+            "Current optimisation objectives and weights (0-10):",
+        ]
+
+        for key, weight in weights.items():
+            description = settings["objectives"].get(key, "Custom optimisation objective.")
+            lines.append(f"- {key}: weight {weight} — {description}")
+
+        lines.extend([
+            "",
+            "Use higher-weight objectives as stronger decision priorities when tradeoffs are needed.",
+            "",
+            "Target sensor conditions to steer toward when practical:",
+        ])
+
+        for sensor, value in targets.items():
+            unit = SENSOR_UNITS.get(sensor, "")
+            if value is None:
+                lines.append(f"- {sensor}: no explicit target")
+            else:
+                lines.append(f"- {sensor}: target {value} {unit}".rstrip())
+
+        return "\n".join(lines)
 
     @staticmethod
     def _format_alerts(alerts: list[dict], state: dict) -> str:
@@ -236,3 +340,49 @@ class SupervisorAgent:
             lines.append(line)
         lines.append("\nAssess the situation, take the safest lowest-cost corrective action, brief the operator, and log your decision.")
         return "\n".join(lines)
+
+    @staticmethod
+    def _build_default_optimization_settings() -> dict:
+        sensor_samples: dict[str, list[float]] = {}
+        for zone_ranges in SENSOR_NORMAL_RANGES.values():
+            for sensor, bounds in zone_ranges.items():
+                midpoint = round((bounds[0] + bounds[1]) / 2, 3)
+                sensor_samples.setdefault(sensor, []).append(midpoint)
+
+        targets = {
+            sensor: round(sum(values) / len(values), 3)
+            for sensor, values in sensor_samples.items()
+        }
+
+        return {
+            "summary": "Prioritise safe, stable operation first, then reduce energy cost while keeping the plant near nominal targets.",
+            "weights": {
+                "safety_margin": 10.0,
+                "operating_cost": 7.0,
+                "stability": 8.0,
+                "throughput": 5.0,
+                "co2_emissions": 6.0,
+                "product_quality": 7.0,
+                "equipment_wear": 5.0,
+                "recovery_time": 6.0,
+            },
+            "objectives": {
+                "safety_margin": "Keep strong distance from hard safety limits and avoid risk escalation.",
+                "operating_cost": "Reduce hourly operating cost where it does not compromise safety.",
+                "stability": "Avoid oscillations, abrupt swings, and unstable process behavior.",
+                "throughput": "Preserve useful production flow and avoid unnecessary output loss.",
+                "co2_emissions": "Reduce CO2-heavy operating choices and avoid unnecessary venting or emissions growth.",
+                "product_quality": "Keep process conditions close to nominal quality-friendly ranges.",
+                "equipment_wear": "Avoid aggressive or frequent actuator changes that increase wear.",
+                "recovery_time": "Return the plant to normal operation quickly after disturbances.",
+            },
+            "targets": targets,
+        }
+
+    @staticmethod
+    def _normalize_metric_key(value: str) -> str:
+        cleaned = value.strip().lower().replace(" ", "_").replace("-", "_")
+        cleaned = "".join(char for char in cleaned if char.isalnum() or char == "_")
+        while "__" in cleaned:
+            cleaned = cleaned.replace("__", "_")
+        return cleaned.strip("_")

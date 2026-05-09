@@ -2,8 +2,9 @@
 
 Autonomous AI operations agent for an industrial chemical plant. Monitors real-time
 sensor data, detects anomalies, and autonomously adjusts plant controls to minimise
-operating cost while maintaining safety margins. Every decision is spoken aloud to
-operators via ElevenLabs.
+operating cost while maintaining safety margins. Voice announcements, optimisation
+priorities, target operating conditions, and speech-to-text input can all be
+changed live at runtime.
 
 ---
 
@@ -22,8 +23,9 @@ Sensor data (CSV replay)
            ▼
 ┌─────────────────────┐
 │  Supervisor Agent   │  OpenAI (gpt-5.5) with tool-calling.
-│  agent_supervisor.py│  Reasons over plant state, picks lowest-cost
-│                     │  safe action. Re-reasons if Control rejects.
+│  agent_supervisor.py│  Reasons over plant state, balances live
+│                     │  optimisation goals, uses projected objective metrics,
+│                     │  re-reasons if Control rejects.
 └──────┬──────────┬───┘
        │          │
        ▼          ▼
@@ -32,10 +34,18 @@ Sensor data (CSV replay)
 │ Agent    │  │ agent_voice │
 │          │  │             │
 │ Validates│  │ ElevenLabs  │
-│ against  │  │ TTS → speaks│
-│ safety   │  │ decision to │
-│ envelope │  │ operator    │
+│ against  │  │ / pyttsx3   │
+│ safety   │  │ queued TTS, │
+│ envelope │  │ STT + no overlap
 └──────────┘  └─────────────┘
+
+Additional backend utility agent:
+
+┌─────────────────────┐
+│    Read Agent       │  LangGraph + LangChain repo inspector.
+│    agent_read.py    │  Reads `CLAUDE.md`, backend files, and
+│                     │  other repository text files via safe tools.
+└─────────────────────┘
 ```
 
 ---
@@ -49,15 +59,17 @@ Sensor data (CSV replay)
 │
 ├── agents/
 │   ├── agent_monitor.py    ← anomaly detection (3 methods)
-│   ├── agent_supervisor.py ← OpenAI tool-calling orchestrator
+│   ├── agent_read.py       ← LangGraph/LangChain repo-reading agent
+│   ├── agent_supervisor.py ← OpenAI tool-calling orchestrator + live optimisation
 │   ├── agent_control.py    ← validates + executes control actions
-│   └── agent_voice.py      ← ElevenLabs TTS, pyttsx3 fallback
+│   └── agent_voice.py      ← runtime-controlled queued voice + ElevenLabs STT
 │
 ├── plant/
 │   ├── loader.py           ← reads CSVs from Base Dataset/
 │   ├── simulator.py        ← tick-based state machine
 │   ├── safety_envelope.py  ← hard limits + action rate limits
-│   └── cost_model.py       ← energy_consumption → £/hr
+│   ├── cost_model.py       ← energy_consumption → £/hr
+│   └── objective_model.py  ← projected optimisation metrics for agent reasoning
 │
 ├── config/
 │   ├── plant_config.py     ← zone names, sensor units, normal ranges
@@ -74,7 +86,7 @@ Sensor data (CSV replay)
         └── components/
             ├── SensorPanel.jsx     ← zone cards, colour-coded sensor rows
             ├── ActivityLog.jsx     ← decision feed, alert banners, voice quotes
-            └── ControlPanel.jsx    ← setpoints, override toggle, emergency stop
+            └── ControlPanel.jsx    ← setpoints, voice/STT, optimisation editor
 ```
 
 ---
@@ -121,6 +133,56 @@ with the rejection reason and safe_max included in context.
 
 ---
 
+## Runtime controls
+
+The backend now supports live runtime configuration without restarting the app.
+
+### Voice controls
+
+- Speech can be enabled or muted in real time.
+- Voice playback is queued so multiple announcements never overlap.
+- Voice ID can be changed at runtime.
+- The supervisor still generates operator briefing text even if audible speech is muted.
+
+### Optimisation controls
+
+The supervisor uses live optimisation settings on each decision tick:
+
+- Strategy summary: free-text description of what the agent should prioritise
+- Weights: built-in objectives plus custom user-defined objectives
+- Target conditions: editable target values for the main plant sensors
+
+These settings can be changed while the simulation is running, and the next
+supervisor decision will use the updated values.
+
+### Objective model
+
+The backend now provides deterministic projected metrics so the supervisor can
+reason over more than just cost. Current computed/projected objectives include:
+
+- `co2_emissions`
+- `throughput`
+- `product_quality`
+- `equipment_wear`
+- `stability`
+- `maintenance_risk`
+- `recovery_time`
+- `alarm_load`
+- `utility_efficiency`
+- `flaring_or_venting`
+
+The control panel can also define additional custom objective names and weights.
+Those custom objectives are included in the supervisor prompt immediately.
+
+### Speech to text
+
+- The control panel includes a microphone recording button.
+- Recorded browser audio is uploaded to the backend.
+- The backend sends that audio to ElevenLabs Scribe v2 for transcription.
+- The resulting transcript is returned to the UI.
+
+---
+
 ## How to run
 
 ```bash
@@ -139,4 +201,60 @@ Open `http://localhost:5173`.
 OPENAI_API_KEY=sk-...
 ELEVENLABS_API_KEY=...
 ELEVENLABS_VOICE_ID=Rachel   # optional
+```
+
+### Read agent endpoint
+
+The backend also exposes a repo-inspection endpoint for development workflows:
+
+```bash
+POST /api/agents/read
+{
+  "query": "Read CLAUDE.md and summarize the backend agents."
+}
+```
+
+### Runtime settings endpoint
+
+The backend also exposes a live settings endpoint:
+
+```bash
+POST /api/settings
+{
+  "voice": {
+    "enabled": true,
+    "voice_id": "Rachel"
+  },
+  "optimization": {
+    "summary": "Prioritise safety first, then stability, then energy cost.",
+    "weights": {
+      "safety_margin": 10,
+      "co2_emissions": 8,
+      "operating_cost": 6,
+      "stability": 9,
+      "throughput": 4
+    },
+    "objectives": {
+      "co2_emissions": "Reduce emissions during control actions.",
+      "equipment_wear": "Avoid aggressive or frequent actuator changes."
+    },
+    "targets": {
+      "temperature": 140,
+      "pressure": 3.5,
+      "co2": 320
+    }
+  }
+}
+```
+
+### Speech-to-text endpoint
+
+The backend also exposes an upload-based transcription endpoint:
+
+```bash
+POST /api/transcribe
+multipart/form-data
+
+audio=<recorded audio blob>
+language_code=eng   # optional
 ```
