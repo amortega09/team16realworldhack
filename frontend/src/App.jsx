@@ -80,6 +80,8 @@ export default function App() {
             overrides={data?.overrides}
             paused={data?.paused ?? false}
             running={data?.running ?? false}
+            voiceSettings={data?.voice_settings}
+            optimizationSettings={data?.optimization_settings}
             post={post}
           />
         </aside>

@@ -5,9 +5,10 @@
   text-align: center;
   padding: 48px 20px;
   line-height: 2;
-  font-size: 0.82rem;
-  border: 1px dashed var(--border-hi);
-  border-radius: 8px;
+  font-size: 0.9rem;
+  border: 1px dashed rgba(200, 183, 157, 0.95);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.4);
 }
 .activity-empty strong { color: var(--text); }
 
@@ -18,34 +19,36 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  padding: 9px 12px;
-  border-radius: 6px;
-  font-size: 0.78rem;
+  padding: 12px 14px;
+  border-radius: 16px;
+  font-size: 0.82rem;
   border: 1px solid transparent;
+  box-shadow: 0 6px 18px rgba(117, 92, 58, 0.06);
 }
-.alert-banner.alert-warning  { background: var(--amber-dim); border-color: #f5a62333; }
-.alert-banner.alert-critical { background: var(--red-dim);   border-color: #f0375a33; animation: pulse-crit 2s infinite; }
+.alert-banner.alert-warning  { background: rgba(255, 246, 233, 0.96); border-color: rgba(179, 106, 20, 0.24); }
+.alert-banner.alert-critical { background: rgba(255, 240, 239, 0.96); border-color: rgba(181, 59, 53, 0.24); animation: pulse-crit 2s infinite; }
 
 .alert-pip {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
   margin-top: 3px;
 }
 .alert-pip-warning  { background: var(--amber); }
-.alert-pip-critical { background: var(--red); box-shadow: 0 0 5px var(--red); }
+.alert-pip-critical { background: var(--red); box-shadow: 0 0 0 4px rgba(181, 59, 53, 0.12); }
 
 .alert-text { line-height: 1.5; color: var(--text); }
-.alert-type { color: var(--text-dim); font-size: 0.72rem; }
+.alert-type { color: var(--text-dim); font-size: 0.74rem; }
 
 /* Decision cards */
 .decision-card {
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 11px 13px;
-  border-left: 2px solid var(--border-hi);
+  border-radius: 18px;
+  padding: 14px 15px;
+  border-left: 4px solid var(--border-hi);
+  box-shadow: 0 10px 22px rgba(117, 92, 58, 0.08);
 }
 .decision-executed { border-left-color: var(--green); }
 .decision-rejected { border-left-color: var(--red); }
@@ -70,31 +73,31 @@
 .dot-info     { background: var(--blue); }
 
 .decision-label {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
 }
 .label-executed { color: var(--green); }
 .label-rejected { color: var(--red); }
 .label-info     { color: var(--blue); }
 
 .decision-saving {
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--green);
   font-family: 'JetBrains Mono', monospace;
 }
 
 .decision-action {
-  font-size: 0.75rem;
+  font-size: 0.76rem;
   color: var(--text-dim);
   font-family: 'JetBrains Mono', monospace;
   margin-bottom: 7px;
-  padding: 5px 8px;
-  background: #ffffff04;
-  border-radius: 4px;
-  border: 1px solid var(--border);
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.54);
+  border-radius: 10px;
+  border: 1px solid rgba(221, 207, 186, 0.88);
 }
 
 .decision-rejection {
@@ -105,15 +108,15 @@
 }
 
 .decision-voice {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   color: var(--text-dim);
   font-style: italic;
   line-height: 1.6;
-  padding: 8px 12px;
-  border-left: 2px solid var(--border-hi);
+  padding: 10px 12px;
+  border-left: 3px solid var(--border-hi);
   margin: 0 0 7px;
-  background: #ffffff04;
-  border-radius: 0 4px 4px 0;
+  background: rgba(255, 255, 255, 0.45);
+  border-radius: 0 10px 10px 0;
 }
 
 .decision-reasoning-wrap { margin-top: 4px; }
@@ -125,7 +128,7 @@
   background: none;
   border: none;
   color: var(--text-dim);
-  font-size: 0.72rem;
+  font-size: 0.74rem;
   font-family: inherit;
   cursor: pointer;
   padding: 2px 0;
@@ -142,9 +145,9 @@
   margin-top: 8px;
   font-size: 0.72rem;
   color: var(--text-dim);
-  background: #ffffff04;
-  border: 1px solid var(--border);
-  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(221, 207, 186, 0.88);
+  border-radius: 12px;
   padding: 10px 12px;
   white-space: pre-wrap;
   word-break: break-word;
