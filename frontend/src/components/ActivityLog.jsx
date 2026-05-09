@@ -56,12 +56,6 @@ function DecisionCard({ decision }) {
         <div className="decision-rejection">{ctrl.reason}</div>
       )}
 
-      {decision.voice_message && (
-        <blockquote className="decision-voice">
-          "{decision.voice_message}"
-        </blockquote>
-      )}
-
       {decision.reasoning && (
         <div className="decision-reasoning-wrap">
           <button className="reasoning-toggle" onClick={() => setExpanded(!expanded)}>

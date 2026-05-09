@@ -83,7 +83,7 @@ function SensorRow({ zone, sensor, value }) {
 
 function ZoneCard({ zoneId, zoneData }) {
   const { display_name, sensors, is_working } = zoneData
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   const worst = is_working ? zoneWorstStatus(zoneId, sensors) : 'idle'
 
   return (

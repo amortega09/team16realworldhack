@@ -18,7 +18,7 @@ function Header({ data, connected, post }) {
     <header className="header">
       <div className="header-brand">
         <div className="header-wordmark">
-          <h1 className="header-title">ChemBrain</h1>
+          <h1 className="header-title">PlantMind</h1>
           <span className="header-tag">Autonomous Ops</span>
         </div>
       </div>
@@ -80,8 +80,11 @@ export default function App() {
             overrides={data?.overrides}
             paused={data?.paused ?? false}
             running={data?.running ?? false}
-            voiceSettings={data?.voice_settings}
+            transcriptionSettings={data?.transcription_settings}
             optimizationSettings={data?.optimization_settings}
+            objectiveLiveValues={data?.objective_live_values}
+            sensorUnits={data?.sensor_units}
+            zones={data?.zones}
             post={post}
             postForm={postForm}
           />

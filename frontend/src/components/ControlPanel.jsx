@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import './ControlPanel.css'
 
 const UNITS = {
@@ -23,53 +24,75 @@ function MicIcon({ recording }) {
   )
 }
 
-function VoiceControls({ voiceSettings, post }) {
-  const [voiceEnabled, setVoiceEnabled] = useState(voiceSettings?.enabled ?? true)
-  const [voiceId, setVoiceId] = useState(voiceSettings?.voice_id ?? 'Rachel')
+function Chevron({ open }) {
+  return (
+    <svg className={`cp-chevron ${open ? 'open' : ''}`} width="14" height="14" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+      <path d="M2.5 4.5L6 8L9.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
 
-  const saveVoice = () => post('/api/settings', {
-    voice: {
-      enabled: voiceEnabled,
-      voice_id: voiceId,
-    },
-  })
+function Modal({ open, title, onClose, children }) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [open, onClose])
+
+  if (!open) return null
+
+  return createPortal(
+    <div className="cp-modal-backdrop" onClick={onClose} role="presentation">
+      <div className="cp-modal" role="dialog" aria-modal="true" aria-label={title} onClick={(e) => e.stopPropagation()}>
+        <header className="cp-modal-header">
+          <h2 className="cp-modal-title">{title}</h2>
+          <button type="button" className="cp-modal-close" onClick={onClose} aria-label="Close">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M3.5 3.5L12.5 12.5M12.5 3.5L3.5 12.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          </button>
+        </header>
+        <div className="cp-modal-body">{children}</div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+function ControlSection({ title, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen)
 
   return (
     <section className="cp-section">
-      <p className="cp-label">Voice Output</p>
-      <label className="cp-toggle">
-        <input
-          type="checkbox"
-          checked={voiceEnabled}
-          onChange={(e) => setVoiceEnabled(e.target.checked)}
-        />
-        <span className="cp-track">
-          <span className="cp-thumb" />
-        </span>
-        <span className="cp-toggle-label">
-          {voiceEnabled ? 'Speak aloud' : 'Muted'}
-        </span>
-      </label>
-      <div className="cp-field">
-        <label className="cp-field-label">Voice ID</label>
-        <input
-          className="cp-input"
-          value={voiceId}
-          onChange={(e) => setVoiceId(e.target.value)}
-          placeholder="Rachel"
-        />
+      <button type="button" className="cp-section-header" onClick={() => setOpen((current) => !current)}>
+        <span className="cp-label cp-label-no-margin">{title}</span>
+        <Chevron open={open} />
+      </button>
+      <div className={`cp-section-body ${open ? 'cp-section-body-open' : ''}`}>
+        <div className="cp-section-inner">
+          {children}
+        </div>
       </div>
-      <p className="cp-note">
-        Announcements are queued to prevent overlap.
-        {voiceSettings?.is_speaking ? ' Speaking now.' : ''}
-        {typeof voiceSettings?.queued_messages === 'number' ? ` Queue: ${voiceSettings.queued_messages}.` : ''}
-      </p>
-      <button className="cp-action" onClick={saveVoice}>Apply Voice Settings</button>
     </section>
   )
 }
 
-function OptimizationControls({ optimizationSettings, post }) {
+function formatLiveValue(value) {
+  if (value == null || Number.isNaN(value)) return '—'
+  if (Math.abs(value) >= 100)  return value.toFixed(0)
+  if (Math.abs(value) >= 1)    return value.toFixed(2)
+  if (Math.abs(value) >= 0.01) return value.toFixed(3)
+  if (value === 0)             return '0'
+  return value.toExponential(1)
+}
+
+function OptimizationControls({ optimizationSettings, objectiveLiveValues, sensorUnits, zones, post, onSaved }) {
   const [summary, setSummary] = useState(optimizationSettings?.summary ?? '')
   const [weights, setWeights] = useState(optimizationSettings?.weights ?? {})
   const [objectives, setObjectives] = useState(optimizationSettings?.objectives ?? {})
@@ -78,14 +101,17 @@ function OptimizationControls({ optimizationSettings, post }) {
   const [newObjectiveDescription, setNewObjectiveDescription] = useState('')
   const [newObjectiveWeight, setNewObjectiveWeight] = useState('5')
 
-  const saveOptimization = () => post('/api/settings', {
-    optimization: {
-      summary,
-      weights,
-      objectives,
-      targets,
-    },
-  })
+  const saveOptimization = async () => {
+    await post('/api/settings', {
+      optimization: {
+        summary,
+        weights,
+        objectives,
+        targets,
+      },
+    })
+    onSaved?.()
+  }
 
   const addObjective = () => {
     const key = newObjectiveName.trim().toLowerCase().replace(/\s+/g, '_').replace(/-/g, '_')
@@ -105,8 +131,11 @@ function OptimizationControls({ optimizationSettings, post }) {
   }
 
   return (
-    <section className="cp-section">
-      <p className="cp-label">Optimisation Goals</p>
+    <>
+      <p className="cp-note">
+        Set how much each objective matters (priority 0–10). The chip on the right shows the live reading
+        from the plant in real units, so you can see what each priority is actually steering.
+      </p>
       <div className="cp-field">
         <label className="cp-field-label">Strategy</label>
         <textarea
@@ -118,33 +147,53 @@ function OptimizationControls({ optimizationSettings, post }) {
         />
       </div>
 
-      <div className="cp-grid">
-        {Object.entries(weights).map(([key, value]) => (
-          <div key={key} className="cp-field">
-            <label className="cp-field-label">{formatLabel(key)}</label>
-            <input
-              className="cp-input"
-              type="number"
-              min="0"
-              max="10"
-              step="0.5"
-              value={value}
-              onChange={(e) => setWeights((current) => ({
-                ...current,
-                [key]: e.target.value === '' ? '' : Number(e.target.value),
-              }))}
-            />
-            <input
-              className="cp-input"
-              value={objectives[key] ?? ''}
-              onChange={(e) => setObjectives((current) => ({
-                ...current,
-                [key]: e.target.value,
-              }))}
-              placeholder="What this objective means"
-            />
-          </div>
-        ))}
+      <p className="cp-subhead">Objectives</p>
+      <div className="cp-objectives">
+        {Object.entries(weights).map(([key, value]) => {
+          const live = objectiveLiveValues?.[key]
+          const numeric = value === '' ? 0 : Number(value)
+          return (
+            <div key={key} className="cp-objective">
+              <div className="cp-objective-head">
+                <span className="cp-objective-name">{formatLabel(key)}</span>
+                {live ? (
+                  <span className="cp-objective-live">
+                    <span className="cp-objective-live-value">{formatLiveValue(live.value)}</span>
+                    <span className="cp-objective-live-unit">{live.unit}</span>
+                  </span>
+                ) : (
+                  <span className="cp-objective-live cp-objective-live-empty">no live reading</span>
+                )}
+              </div>
+              <div className="cp-objective-priority">
+                <input
+                  className="cp-slider"
+                  type="range"
+                  min="0"
+                  max="10"
+                  step="0.5"
+                  value={numeric}
+                  onChange={(e) => setWeights((current) => ({
+                    ...current,
+                    [key]: Number(e.target.value),
+                  }))}
+                />
+                <span className="cp-objective-prio">
+                  Priority <strong>{numeric}</strong> / 10
+                </span>
+              </div>
+              <input
+                className="cp-input"
+                value={objectives[key] ?? ''}
+                onChange={(e) => setObjectives((current) => ({
+                  ...current,
+                  [key]: e.target.value,
+                }))}
+                placeholder="What this objective means"
+              />
+            </div>
+          )
+        })}
       </div>
 
       <p className="cp-subhead">Add Objective</p>
@@ -198,30 +247,53 @@ function OptimizationControls({ optimizationSettings, post }) {
       <button className="cp-action cp-action-secondary" onClick={addObjective}>Add Objective To Plan</button>
 
       <p className="cp-subhead">Target Conditions</p>
-      <div className="cp-grid">
-        {Object.entries(targets).map(([key, value]) => (
-          <div key={key} className="cp-field">
-            <label className="cp-field-label">{formatLabel(key)}</label>
-            <input
-              className="cp-input"
-              type="number"
-              step="0.1"
-              value={value ?? ''}
-              onChange={(e) => setTargets((current) => ({
-                ...current,
-                [key]: e.target.value,
-              }))}
-            />
-          </div>
-        ))}
+      <p className="cp-note">
+        Target sensor values the supervisor steers each zone toward. Each zone has its own normal
+        operating range, so e.g. R-101 runs much hotter than HX-01 — set targets accordingly.
+      </p>
+      <div className="cp-targets">
+        {Object.entries(targets).map(([zoneKey, zoneTargets]) => {
+          const zoneLabel = zones?.[zoneKey] || zoneKey
+          return (
+            <div key={zoneKey} className="cp-target-zone">
+              <div className="cp-target-zone-head">
+                <span className="cp-target-zone-name">{zoneLabel}</span>
+                <span className="cp-target-zone-id">{zoneKey}</span>
+              </div>
+              <div className="cp-grid">
+                {Object.entries(zoneTargets).map(([sensor, value]) => {
+                  const unit = sensorUnits?.[sensor] || UNITS[sensor] || ''
+                  return (
+                    <div key={sensor} className="cp-field">
+                      <label className="cp-field-label">
+                        {formatLabel(sensor)}
+                        {unit && <span className="cp-field-unit"> ({unit})</span>}
+                      </label>
+                      <input
+                        className="cp-input"
+                        type="number"
+                        step="0.1"
+                        value={value ?? ''}
+                        onChange={(e) => setTargets((current) => ({
+                          ...current,
+                          [zoneKey]: { ...current[zoneKey], [sensor]: e.target.value },
+                        }))}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
       </div>
       <p className="cp-note">Apply these while the simulation is running to change how the supervisor reasons in real time.</p>
       <button className="cp-action" onClick={saveOptimization}>Apply Optimisation Settings</button>
-    </section>
+    </>
   )
 }
 
-function SpeechToTextControls({ postForm }) {
+function SpeechToTextControls({ transcriptionSettings, postForm }) {
   const [isRecording, setIsRecording] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [transcriptStatus, setTranscriptStatus] = useState('')
@@ -277,40 +349,89 @@ function SpeechToTextControls({ postForm }) {
     }
   }
 
+  const ready = !!transcriptionSettings?.configured
+  const transcribing = transcriptStatus === 'Transcribing...'
+  const callState = !ready ? 'off' : isRecording ? 'live' : transcribing ? 'busy' : 'idle'
+  const callLabel = !ready ? 'Voice unavailable'
+                  : isRecording ? 'Listening…'
+                  : transcribing ? 'Transcribing…'
+                  : transcript ? 'Tap to speak again'
+                  : 'Tap to speak'
+  const callHint  = !ready ? 'Add ELEVENLABS_API_KEY to enable'
+                  : isRecording ? 'Tap mic to stop and send'
+                  : transcribing ? 'Sending audio to ElevenLabs Scribe'
+                  : 'ElevenLabs Scribe v2'
+
+  const clearTranscript = () => {
+    setTranscript('')
+    setTranscriptStatus('')
+  }
+
   return (
-    <section className="cp-section">
-      <p className="cp-label">Speech To Text</p>
-      <button
-        type="button"
-        className={`cp-record ${isRecording ? 'is-recording' : ''}`}
-        onClick={toggleRecording}
-      >
-        <MicIcon recording={isRecording} />
-        <span>{isRecording ? 'Stop Recording' : 'Record Voice'}</span>
-      </button>
-      <p className="cp-note">
-        Record from your microphone and transcribe it with ElevenLabs Scribe.
-      </p>
-      {transcriptStatus && <p className="cp-status">{transcriptStatus}</p>}
-      <textarea
-        className="cp-textarea cp-transcript"
-        value={transcript}
-        onChange={(e) => setTranscript(e.target.value)}
-        placeholder="Transcript will appear here."
-        rows={5}
-      />
-    </section>
+    <div className="cp-speech-section">
+      <div className={`cp-call cp-call-${callState}`}>
+        <button
+          type="button"
+          className={`cp-call-btn ${isRecording ? 'is-recording' : ''}`}
+          onClick={toggleRecording}
+          disabled={!ready || transcribing}
+          aria-label={callLabel}
+        >
+          <MicIcon recording={isRecording} />
+        </button>
+        <div className="cp-call-meta">
+          <p className="cp-call-status">{callLabel}</p>
+          <p className="cp-call-hint">{callHint}</p>
+        </div>
+      </div>
+
+      {transcript ? (
+        <div className="cp-transcript-card">
+          <div className="cp-transcript-head">
+            <span className="cp-transcript-label">Captured message</span>
+            <button type="button" className="cp-transcript-clear" onClick={clearTranscript}>Clear</button>
+          </div>
+          <textarea
+            className="cp-transcript-edit"
+            value={transcript}
+            onChange={(e) => setTranscript(e.target.value)}
+            rows={3}
+          />
+        </div>
+      ) : (
+        !isRecording && !transcribing && ready && (
+          <p className="cp-transcript-empty">Your message will appear here once transcribed.</p>
+        )
+      )}
+    </div>
   )
 }
 
-export default function ControlPanel({ overrides, paused, voiceSettings, optimizationSettings, post, postForm }) {
+export default function ControlPanel({ overrides, paused, transcriptionSettings, optimizationSettings, objectiveLiveValues, sensorUnits, zones, post, postForm }) {
   const hasOverrides = overrides && Object.keys(overrides).length > 0
+  const [optModalOpen, setOptModalOpen] = useState(false)
 
   return (
     <div className="control-panel">
+      <section className="cp-summary">
+        <p className="cp-summary-title">Quick Status</p>
+        <div className="cp-summary-pills">
+          <div className="cp-status-pill">
+            <span className={`cp-pill-dot ${paused ? 'amber' : 'green'}`} />
+            <span className="cp-pill-label">Mode</span>
+            <span className="cp-pill-value">{paused ? 'Manual' : 'Autonomous'}</span>
+          </div>
+          <div className="cp-status-pill">
+            <span className={`cp-pill-dot ${transcriptionSettings?.configured ? 'green' : 'muted'}`} />
+            <span className="cp-pill-label">Voice input</span>
+            <span className="cp-pill-value">
+              {transcriptionSettings?.configured ? 'Ready' : 'Off'}
+            </span>
+          </div>
+        </div>
+      </section>
 
-      <section className="cp-section">
-        <p className="cp-label">Applied Setpoints</p>
+      <ControlSection title="Applied Setpoints">
         {!hasOverrides
           ? <p className="cp-empty">No overrides active.</p>
           : Object.entries(overrides).map(([zone, metrics]) => (
@@ -327,47 +448,28 @@ export default function ControlPanel({ overrides, paused, voiceSettings, optimiz
               </div>
             ))
         }
-      </section>
+      </ControlSection>
+
+      <div className="cp-divider" />
+
+
+
+      <SpeechToTextControls
+        transcriptionSettings={transcriptionSettings}
+        postForm={postForm}
+      />
 
       <div className="cp-divider" />
 
       <section className="cp-section">
-        <p className="cp-label">Human Override</p>
-        <label className="cp-toggle">
-          <input
-            type="checkbox"
-            checked={paused}
-            onChange={(e) => post('/api/override', { paused: e.target.checked })}
-          />
-          <span className="cp-track">
-            <span className="cp-thumb" />
-          </span>
-          <span className="cp-toggle-label">
-            {paused ? 'Manual mode' : 'Autonomous'}
-          </span>
-        </label>
-        {paused && <p className="cp-warning">Agents paused — you have control.</p>}
+        <span className="cp-label cp-label-no-margin">Optimisation Goals</span>
+        <p className="cp-note">
+          Edit the supervisor's strategy, weights, and target conditions in a focused dialog.
+        </p>
+        <button className="cp-action" onClick={() => setOptModalOpen(true)}>
+          Edit Optimisation Goals
+        </button>
       </section>
-
-      <div className="cp-divider" />
-
-      <VoiceControls
-        key={JSON.stringify(voiceSettings ?? {})}
-        voiceSettings={voiceSettings}
-        post={post}
-      />
-
-      <div className="cp-divider" />
-
-      <SpeechToTextControls postForm={postForm} />
-
-      <div className="cp-divider" />
-
-      <OptimizationControls
-        key={JSON.stringify(optimizationSettings ?? {})}
-        optimizationSettings={optimizationSettings}
-        post={post}
-      />
 
       <div className="cp-divider" />
 
@@ -380,6 +482,21 @@ export default function ControlPanel({ overrides, paused, voiceSettings, optimiz
         </button>
       </section>
 
+      <Modal
+        open={optModalOpen}
+        title="Optimisation Goals"
+        onClose={() => setOptModalOpen(false)}
+      >
+        <OptimizationControls
+          key={JSON.stringify(optimizationSettings ?? {})}
+          optimizationSettings={optimizationSettings}
+          objectiveLiveValues={objectiveLiveValues}
+          sensorUnits={sensorUnits}
+          zones={zones}
+          post={post}
+          onSaved={() => setOptModalOpen(false)}
+        />
+      </Modal>
     </div>
   )
 }
